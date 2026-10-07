@@ -13,9 +13,15 @@ import {
   Check,
   HelpCircle,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Bell
 } from 'lucide-react';
 import { GOOGLE_APPS_SCRIPT_CODE } from '../utils/googleAppsScriptTemplate';
+import {
+  getNotificationPermission,
+  requestNotificationPermission,
+  sendShipmentNotification
+} from '../utils/notifications';
 
 export default function IntegrationsModal({
   isOpen,
@@ -44,6 +50,22 @@ export default function IntegrationsModal({
   const [copiedScript, setCopiedScript] = useState(false);
   const [scriptCode, setScriptCode] = useState(GOOGLE_APPS_SCRIPT_CODE);
   const [showInstructions, setShowInstructions] = useState(true);
+
+  const [notifPermission, setNotifPermission] = useState(getNotificationPermission());
+  const [testAlertSent, setTestAlertSent] = useState(false);
+
+  const handleRequestNotifications = async () => {
+    const res = await requestNotificationPermission();
+    setNotifPermission(res);
+  };
+
+  const handleSendTestNotification = async () => {
+    setTestAlertSent(true);
+    await sendShipmentNotification('TCNU2692599: Status Update', {
+      body: 'Container departed Taiwan Strait on APL CHONGQING. ETA: Oct 24, 2026.'
+    });
+    setTimeout(() => setTestAlertSent(false), 2500);
+  };
 
   const handleTestGoogleSheets = async () => {
     if (!googleSheetsUrl) {
@@ -144,7 +166,19 @@ export default function IntegrationsModal({
             }`}
           >
             <Key className="w-3.5 h-3.5 text-[#0284c7]" />
-            <span>Tracktainer API</span>
+            <span>Tracktainer</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('notifications')}
+            className={`py-2.5 px-3 text-xs font-bold flex items-center gap-1.5 border-b-2 transition-colors flex-1 justify-center ${
+              activeTab === 'notifications'
+                ? 'border-[#0284c7] text-[#0284c7]'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Bell className="w-3.5 h-3.5 text-amber-500" />
+            <span>Alerts</span>
           </button>
         </div>
 
@@ -332,6 +366,79 @@ export default function IntegrationsModal({
                 <code className="block bg-white p-2 rounded-md border border-slate-200 text-[11px] font-mono text-slate-800 break-all select-all">
                   {window.location.origin}/api/tracktainer/webhook
                 </code>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'notifications' && (
+            <div className="space-y-3.5">
+              <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-xs">Push Notification Alerts</h3>
+                    <p className="text-[11px] text-slate-500">
+                      Receive instant phone & browser alerts on container status changes
+                    </p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                    notifPermission === 'granted'
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : notifPermission === 'denied'
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    {notifPermission === 'granted' ? 'Enabled' : notifPermission === 'denied' ? 'Blocked' : 'Action Needed'}
+                  </span>
+                </div>
+
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-2 text-[11px] text-slate-600">
+                  <div className="flex items-start gap-2">
+                    <span className="text-base">🔔</span>
+                    <div>
+                      <p className="font-semibold text-slate-800">Status & Milestone Alerts</p>
+                      <p className="text-[10px] text-slate-500">Notifies when container departs, arrives, or is cleared at port.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-base">⚠️</span>
+                    <div>
+                      <p className="font-semibold text-slate-800">Delay & ETA Shifts</p>
+                      <p className="text-[10px] text-slate-500">Alerts if vessel is delayed or ETA changes unexpectedly.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-base">📱</span>
+                    <div>
+                      <p className="font-semibold text-slate-800">Install as PWA</p>
+                      <p className="text-[10px] text-slate-500">Tap "Add to Home Screen" in your mobile browser to run as a native mobile app.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {notifPermission !== 'granted' ? (
+                  <button
+                    onClick={handleRequestNotifications}
+                    className="w-full py-2 bg-[#0284c7] hover:bg-[#0369a1] text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <Bell className="w-3.5 h-3.5" />
+                    <span>Enable Push Notifications</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleSendTestNotification}
+                    disabled={testAlertSent}
+                    className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{testAlertSent ? 'Alert Sent to Device!' : 'Send Test Notification'}</span>
+                  </button>
+                )}
+
+                {notifPermission === 'denied' && (
+                  <p className="text-[10px] text-red-500 italic text-center">
+                    Notifications are blocked in your browser settings. Please click the padlock icon in your browser URL bar to allow notifications.
+                  </p>
+                )}
               </div>
             </div>
           )}

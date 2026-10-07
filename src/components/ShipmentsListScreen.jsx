@@ -13,8 +13,11 @@ import {
   ChevronRight,
   ShieldCheck,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Bell,
+  Download
 } from 'lucide-react';
+import { getNotificationPermission, requestNotificationPermission } from '../utils/notifications';
 
 export default function ShipmentsListScreen({
   shipments,
@@ -25,9 +28,12 @@ export default function ShipmentsListScreen({
   googleSheetsConnected,
   tracktainerLinked,
   isSyncing,
-  onRefresh
+  onRefresh,
+  hasInstallPrompt,
+  onInstallApp
 }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [notificationState, setNotificationState] = useState(() => getNotificationPermission());
 
   const filteredShipments = shipments.filter(s => {
     const q = searchQuery.toLowerCase();
@@ -63,6 +69,25 @@ export default function ShipmentsListScreen({
 
         {/* Header Right Actions */}
         <div className="flex items-center gap-2">
+          {/* Push Notification Button */}
+          <button
+            onClick={async () => {
+              const res = await requestNotificationPermission();
+              setNotificationState(res);
+            }}
+            title={notificationState === 'granted' ? 'Push Notifications Active' : 'Enable Push Notifications'}
+            className={`w-8 h-8 rounded-full border flex items-center justify-center transition-colors shadow-2xs relative ${
+              notificationState === 'granted'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-white text-slate-600 hover:text-[#0284c7] border-[#ece8df]'
+            }`}
+          >
+            <Bell className="w-3.5 h-3.5" />
+            {notificationState !== 'granted' && (
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+            )}
+          </button>
+
           {/* Refresh / Sync Button */}
           <button
             onClick={onRefresh}
@@ -88,6 +113,26 @@ export default function ShipmentsListScreen({
 
       {/* Main Content Area */}
       <main className="flex-1 p-4 space-y-3.5 pb-24">
+        {/* PWA Install Banner */}
+        {hasInstallPrompt && (
+          <div className="bg-gradient-to-r from-[#0284c7] to-[#0369a1] text-white p-3 rounded-2xl shadow-sm flex items-center justify-between animate-in fade-in">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+                <Download className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <div className="text-xs font-bold leading-tight">Install Mobile App</div>
+                <div className="text-[10px] text-white/80">Add Tracktainer to Home Screen</div>
+              </div>
+            </div>
+            <button
+              onClick={onInstallApp}
+              className="px-3 py-1.5 bg-white text-[#0284c7] text-xs font-bold rounded-lg shadow-xs active:scale-95 transition-all"
+            >
+              Install
+            </button>
+          </div>
+        )}
         {/* Connection Status Pill Banner */}
         <div className="flex items-center justify-between bg-white px-3.5 py-2.5 rounded-xl border border-[#ece8df] shadow-2xs">
           <div className="flex items-center gap-2">

@@ -14,13 +14,19 @@ import {
   isLocalServer
 } from './utils/storage';
 import { fetchLiveTracktainerShipments } from './utils/tracktainerApi';
-import { CheckCircle2, AlertCircle } from 'lucide-react';
+import {
+  sendShipmentNotification,
+  requestNotificationPermission,
+  getNotificationPermission
+} from './utils/notifications';
+import { CheckCircle2, AlertCircle, Download, Bell } from 'lucide-react';
 
 export default function App() {
   const [shipments, setShipments] = useState(() => getStoredShipments());
   const [selectedShipment, setSelectedShipment] = useState(() => getStoredShipments()[0]);
   const [activeScreen, setActiveScreen] = useState('list'); // 'list' | 'detail'
   const [settings, setSettings] = useState(() => getStoredSettings());
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
 
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [editingShipment, setEditingShipment] = useState(null);
@@ -29,6 +35,27 @@ export default function App() {
   const [settingsTab, setSettingsTab] = useState('sheets');
   const [isSyncing, setIsSyncing] = useState(false);
   const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    // Listen for PWA install prompt
+    const handleBeforeInstall = (e) => {
+      e.preventDefault();
+      setDeferredInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      const choice = await deferredInstallPrompt.userChoice;
+      if (choice.outcome === 'accepted') {
+        setDeferredInstallPrompt(null);
+        showToast('Tracktainer App installed!');
+      }
+    }
+  };
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -155,6 +182,12 @@ export default function App() {
         } catch (e) {}
       }
 
+      if (targetShipment) {
+        sendShipmentNotification(`Container ${targetShipment.containerNumber} Updated`, {
+          body: `Status: ${updatePayload.status || targetShipment.status} • Delay: ${targetShipment.statusBadge}`,
+        });
+      }
+
       showToast('Shipment status updated & recorded!');
     } catch (err) {
       showToast('Error updating status: ' + err.message, 'error');
@@ -263,6 +296,10 @@ export default function App() {
         } catch (e) {}
       }
 
+      sendShipmentNotification(`New Shipment: ${completeShipment.containerNumber}`, {
+        body: `${completeShipment.carrier}: ${completeShipment.pol.name} → ${completeShipment.pod.name} (ETA: ${completeShipment.timeline.eta})`,
+      });
+
       showToast(`Container ${completeShipment.containerNumber} added!`);
     } catch (err) {
       showToast('Error tracking shipment: ' + err.message, 'error');
@@ -362,6 +399,8 @@ export default function App() {
             tracktainerLinked={!!settings.tracktainerApiKey}
             isSyncing={isSyncing}
             onRefresh={fetchShipments}
+            hasInstallPrompt={!!deferredInstallPrompt}
+            onInstallApp={handleInstallApp}
           />
         )}
 
