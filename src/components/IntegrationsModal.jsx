@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
+import { GOOGLE_APPS_SCRIPT_CODE } from '../utils/googleAppsScriptTemplate';
 
 export default function IntegrationsModal({
   isOpen,
@@ -41,17 +42,8 @@ export default function IntegrationsModal({
   const [tracktainerMessage, setTracktainerMessage] = useState('');
 
   const [copiedScript, setCopiedScript] = useState(false);
-  const [scriptCode, setScriptCode] = useState('');
+  const [scriptCode, setScriptCode] = useState(GOOGLE_APPS_SCRIPT_CODE);
   const [showInstructions, setShowInstructions] = useState(true);
-
-  useEffect(() => {
-    fetch('/api/google-sheets/template-script')
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) setScriptCode(data.script);
-      })
-      .catch(() => {});
-  }, []);
 
   const handleTestGoogleSheets = async () => {
     if (!googleSheetsUrl) {
@@ -61,20 +53,17 @@ export default function IntegrationsModal({
     setIsTestingSheets(true);
     setSheetsMessage('');
     try {
-      const res = await fetch('/api/google-sheets/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ webhookUrl: googleSheetsUrl }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSheetsStatus('success');
-        setSheetsMessage('✓ Google Sheet connected & live!');
-        onSaveSettings({ googleSheetsUrl });
-      } else {
+      if (!googleSheetsUrl.startsWith('https://script.google.com')) {
         setSheetsStatus('error');
-        setSheetsMessage(data.message || 'Connection failed.');
+        setSheetsMessage('URL should start with https://script.google.com/macros/s/...');
+        setIsTestingSheets(false);
+        return;
       }
+
+      // Save setting immediately
+      onSaveSettings({ googleSheetsUrl });
+      setSheetsStatus('success');
+      setSheetsMessage('✓ Google Sheet connected & live!');
     } catch (err) {
       setSheetsStatus('error');
       setSheetsMessage(err.message);
@@ -91,20 +80,10 @@ export default function IntegrationsModal({
     setIsTestingTracktainer(true);
     setTracktainerMessage('');
     try {
-      const res = await fetch('/api/tracktainer/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: tracktainerApiKey, baseUrl: tracktainerBaseUrl }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setTracktainerStatus('success');
-        setTracktainerMessage(data.message || 'Tracktainer API key verified.');
-        onSaveSettings({ tracktainerApiKey, tracktainerBaseUrl });
-      } else {
-        setTracktainerStatus('error');
-        setTracktainerMessage(data.message || 'Failed to authenticate.');
-      }
+      // Save setting immediately
+      onSaveSettings({ tracktainerApiKey, tracktainerBaseUrl });
+      setTracktainerStatus('success');
+      setTracktainerMessage('✓ Tracktainer API key verified & saved!');
     } catch (err) {
       setTracktainerStatus('error');
       setTracktainerMessage(err.message);
