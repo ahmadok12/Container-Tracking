@@ -2,7 +2,9 @@
 
 A minimalist single-accent-color mobile shipment tracker inspired by the **Tracktainer** interface, integrated with Tracktainer API and synchronized with **Google Sheets**.
 
-![Tracktainer Mobile Dashboard](https://raw.githubusercontent.com/ahmadok12/Container-Tracking/main/public/preview.png)
+**Live Demo**: [https://ahmadok12.github.io/Container-Tracking/](https://ahmadok12.github.io/Container-Tracking/)
+
+![Tracktainer Mobile Dashboard](public/preview.png)
 
 ## 🌟 Features
 
