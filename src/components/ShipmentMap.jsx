@@ -27,10 +27,10 @@ export default function ShipmentMap({ shipment }) {
         attributionControl: false,
       }).setView([20, 90], 3);
 
-      // Clean Light Ocean Basemap (CartoDB Positron - matches Tracktainer aesthetic)
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        maxZoom: 18,
-        subdomains: 'abcd',
+      // Clean Light Ocean Maritime Basemap - 100% Free, NO API key required, NO watermarks
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 16,
+        subdomains: ['server', 'services'],
       }).addTo(map);
 
       // Add clean zoom control to top-right

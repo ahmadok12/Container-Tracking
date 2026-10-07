@@ -13,6 +13,7 @@ import {
   pullDirectFromGoogleSheets,
   isLocalServer
 } from './utils/storage';
+import { fetchLiveTracktainerShipments } from './utils/tracktainerApi';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function App() {
@@ -34,12 +35,29 @@ export default function App() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  // Fetch shipments and settings
+  // Fetch live shipments from Tracktainer API and backend
   const fetchShipments = async () => {
-    // If running on local server, try syncing with local backend
-    if (isLocalServer()) {
-      try {
-        setIsSyncing(true);
+    setIsSyncing(true);
+    try {
+      // 1. Fetch live real-time shipments directly from Tracktainer API
+      if (settings.tracktainerApiKey) {
+        const liveList = await fetchLiveTracktainerShipments(settings.tracktainerApiKey);
+        if (liveList && liveList.length > 0) {
+          setShipments(liveList);
+          storeShipments(liveList);
+          if (selectedShipment) {
+            const found = liveList.find(s => s.containerNumber === selectedShipment.containerNumber || s.id === selectedShipment.id);
+            setSelectedShipment(found || liveList[0]);
+          } else {
+            setSelectedShipment(liveList[0]);
+          }
+          setIsSyncing(false);
+          return;
+        }
+      }
+
+      // 2. If running on local server, try syncing with local backend
+      if (isLocalServer()) {
         const res = await fetch('/api/shipments');
         if (res.ok && res.headers.get('content-type')?.includes('json')) {
           const data = await res.json();
@@ -52,11 +70,11 @@ export default function App() {
             }
           }
         }
-      } catch (err) {
-        console.warn('Local API notice:', err);
-      } finally {
-        setIsSyncing(false);
       }
+    } catch (err) {
+      console.warn('Sync notice:', err);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
