@@ -1,80 +1,44 @@
-# Container Tracking (Tracktainer Mobile App)
+# JS Traders — Import Shipment Tracking
 
-A minimalist single-accent-color mobile shipment tracker inspired by the **Tracktainer** interface, integrated with Tracktainer API and synchronized with **Google Sheets**.
+Mobile-first PWA for tracking JS Traders' import containers (China → Pakistan / Gulf): status, ETA, delays, voyage progress, route map and milestone history, with optional Google Sheets sync and Tracktainer live data.
 
-**Live Demo**: [https://ahmadok12.github.io/Container-Tracking/](https://ahmadok12.github.io/Container-Tracking/)
+**Live app:** https://ahmadok12.github.io/Container-Tracking/
 
-![Tracktainer Mobile Dashboard](public/preview.png)
+![JS Traders shipments](public/preview.png)
 
-## 🌟 Features
+## Features
 
-- **Mobile-First Tracktainer UI**: Designed with Tracktainer's clean aesthetic, single accent color (`#0284c7`), and intuitive navigation.
-- **Shipment Selection Screen**: Easily browse, search, and manage all shipments added to the portal.
-- **Dedicated Tracking Dashboard**:
-  - Live interactive AIS Maritime Ocean Route Map tracing voyage from POL (Port of Loading) to POD (Port of Discharge) with animated vessel markers.
-  - Shipment Route Cards (`Qingdao → Karachi`), ETA, ATA, and delay indicators (`Delayed +4 days`).
-  - Container counts, transhipment status, transit time, and estimated carbon emissions.
-  - Chronological Milestones Table (`ACTUAL` vs `PLANNED` events, country flags, and vessel IMO/voyage info).
-- **Update Shipment Status**: Quick 1-tap modal to update delay days, arrival estimates, and append new milestone events.
-- **Tracktainer API Linking**: Native support for Tracktainer developer API keys and inbound status update webhooks.
-- **Google Sheets Database**: Direct 2-way synchronization with Google Sheets using Google Apps Script Web App.
+- **Shipments list** – summary tiles (on schedule / delayed / arrived) that double as filters, search by container, B/L, carrier, port, goods or supplier, voyage progress bar and days-to-ETA on every card; overdue ETAs are flagged.
+- **Shipment detail** – route summary, departed / ETA / days left, route map with estimated (or live, from Tracktainer) vessel position, copyable B/L, and a milestone timeline.
+- **Add shipment** – container number validation (ISO 6346) and duplicate check, carrier and port pickers (Qingdao, Shanghai, Ningbo, Tianjin, Xiamen, Yantian, Nansha → Karachi, Port Qasim, Jebel Ali, Dammam, Sohar), ETD/ETA date pickers, optional vessel, voyage, supplier and goods.
+- **Update status** – one-tap status chips, delay stepper, ETA / ATA date pickers, optional milestone entry.
+- **Share / remove** a shipment; Android back button returns to the list.
+- **Google Sheets** two-way sync via an Apps Script web app (Settings → Sheets).
+- **Tracktainer API** – add your key in Settings → Tracktainer to pull live shipments (the key is stored only on your device).
+- **PWA** – installable, works offline (app shell, build files and recently viewed map tiles are cached), shipment alerts.
 
----
+## Development
 
-## 🚀 Quick Start
-
-### 1. Installation
 ```bash
-# Clone the repository
-git clone https://github.com/ahmadok12/Container-Tracking.git
-cd Container-Tracking
-
-# Install dependencies
 npm install
+npm run dev      # app on http://localhost:5173 + API server on :3001
+npm run build    # production build in dist/
 ```
 
-### 2. Environment Configuration
-Copy `.env.example` to `.env`:
-```bash
-cp .env.example .env
-```
-Add your Tracktainer API Key in `.env`:
+Optional `.env` for the local Node server:
+
 ```env
 PORT=3001
-TRACKTAINER_API_KEY=ca0853e15f63f20e1f02bc87166ed103bdeab9db
+TRACKTAINER_API_KEY=your_key_here
 TRACKTAINER_BASE_URL=https://api.tracktainer.com/v1
 ```
 
-### 3. Run Development Server
-```bash
-npm run dev
-```
-- **Mobile Web App**: `http://localhost:5173`
-- **Backend API**: `http://localhost:3001`
+Never commit real API keys.
 
----
+## Theme
 
-## 📊 Google Sheets Integration
+All brand colours live in `src/index.css` under `@theme` (`--color-brand-*`). Change them there to re-theme the whole app.
 
-1. Create a spreadsheet at [sheets.new](https://sheets.new).
-2. Go to **Extensions → Apps Script**.
-3. Copy and paste the script located in `server/data/googleAppsScript.js`.
-4. Click **Deploy → New deployment** → Type: **Web app** → Execute as: **Me** → Access: **Anyone**.
-5. Copy your Web App URL and paste it in the app's **Settings (Gear icon) → Google Sheets** tab.
+## Tech
 
----
-
-## 🚢 Tracktainer API Integration
-
-- Get your developer API key at [tracktainer.com/dashboard/integrations](https://tracktainer.com/dashboard/integrations).
-- Enter the key in the mobile app settings or in `.env`.
-- To receive automated carrier milestone events, set your Tracktainer Webhook URL to:
-  `http://<your-server-domain>/api/tracktainer/webhook`
-
----
-
-## 🛠 Tech Stack
-
-- **Frontend**: React 19, Vite, Tailwind CSS, Leaflet, Lucide React
-- **Backend**: Node.js, Express, CORS
-- **Storage**: Google Sheets (via Apps Script Webhook API) & Local JSON cache
+React 19, Vite, Tailwind CSS 4, Leaflet (lazy-loaded), Lucide icons, Express (optional local server). Deployed to GitHub Pages by `.github/workflows/deploy.yml` on every push to `main`.

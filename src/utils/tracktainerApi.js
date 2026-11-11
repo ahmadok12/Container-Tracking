@@ -1,3 +1,5 @@
+import { buildRoute } from './shipments';
+
 // Tracktainer API Integration Utility
 
 const EVENT_NAME_MAP = {
@@ -10,6 +12,9 @@ const EVENT_NAME_MAP = {
   CUCL: 'Customs Cleared',
   RCVE: 'Delivered to Consignee',
 };
+
+const FLAGS = { CN: '🇨🇳', PK: '🇵🇰', AE: '🇦🇪', SA: '🇸🇦', OM: '🇴🇲', SG: '🇸🇬', LK: '🇱🇰', MY: '🇲🇾', IN: '🇮🇳' };
+const flagFor = (code) => FLAGS[code] || '📍';
 
 function formatDate(isoStr) {
   if (!isoStr) return '';
@@ -36,17 +41,18 @@ export function transformTracktainerShipment(item, detail = null) {
   const latestMovement = containerObj?.latest_movement;
   const vessel = latestMovement?.vessel;
 
-  const vesselName = vessel?.name || (carrierName.includes('Cma') ? 'APL CHONGQING' : 'KMTC CHENNAI');
-  const imo = vessel?.imo ? String(vessel.imo) : '9461867';
-  const voyage = latestMovement?.voyage || '0P52IS1MA';
+  const vesselName = vessel?.name || '';
+  const imo = vessel?.imo ? String(vessel.imo) : '';
+  const voyage = latestMovement?.voyage || '';
 
   const polLat = attr.port_of_loading?.latitude || attr.origin?.latitude || 36.012;
   const polLng = attr.port_of_loading?.longitude || attr.origin?.longitude || 120.213;
   const podLat = attr.port_of_discharge?.latitude || attr.destination?.latitude || 24.7833;
   const podLng = attr.port_of_discharge?.longitude || attr.destination?.longitude || 66.9833;
 
-  const curLat = vessel?.position?.latitude || (containerNumber === 'TCNU2692599' ? 24.2202 : 23.85);
-  const curLng = vessel?.position?.longitude || (containerNumber === 'TCNU2692599' ? 118.9443 : 65.8);
+  const hasLivePosition = vessel?.position?.latitude != null && vessel?.position?.longitude != null;
+  const curLat = hasLivePosition ? vessel.position.latitude : null;
+  const curLng = hasLivePosition ? vessel.position.longitude : null;
 
   // Parse milestones from movements
   let milestones = [];
@@ -56,10 +62,10 @@ export function transformTracktainerShipment(item, detail = null) {
       date: formatDate(m.date),
       type: m.classifier === 'ACT' ? 'ACTUAL' : 'PLANNED',
       location: (m.location?.name || 'Port') + ', ' + (m.location?.country?.name || ''),
-      countryFlag: m.location?.country?.code === 'PK' ? '🇵🇰' : '🇨🇳',
+      countryFlag: flagFor(m.location?.country?.code),
       event: EVENT_NAME_MAP[m.event] || m.event,
       vesselInfo: m.vessel?.name
-        ? `${m.vessel.name} IMO ${m.vessel.imo || imo} VOY ${m.voyage || voyage}`
+        ? `${m.vessel.name} VOY ${m.voyage || voyage}`
         : `${carrierName} • TRUCK`,
     }));
   }
@@ -74,7 +80,7 @@ export function transformTracktainerShipment(item, detail = null) {
         location: `${attr.port_of_loading?.name || 'Qingdao'}, China`,
         countryFlag: '🇨🇳',
         event: 'Departed Port',
-        vesselInfo: `${vesselName} IMO ${imo} VOY ${voyage}`,
+        vesselInfo: vesselName ? `${vesselName} VOY ${voyage}` : carrierName,
       },
       {
         id: 'm2',
@@ -83,7 +89,7 @@ export function transformTracktainerShipment(item, detail = null) {
         location: `${attr.port_of_discharge?.name || 'Karachi'}, Pakistan`,
         countryFlag: '🇵🇰',
         event: 'Arrived at Destination Port',
-        vesselInfo: `${vesselName} IMO ${imo} VOY ${voyage}`,
+        vesselInfo: vesselName ? `${vesselName} VOY ${voyage}` : carrierName,
       },
     ];
   }
@@ -105,7 +111,7 @@ export function transformTracktainerShipment(item, detail = null) {
       name: attr.port_of_loading?.name || attr.origin?.name || 'Qingdao',
       code: attr.port_of_loading?.code || attr.origin?.code || 'CNTAO',
       country: attr.port_of_loading?.country?.name || 'China',
-      flag: '🇨🇳',
+      flag: flagFor(attr.port_of_loading?.country?.code || 'CN'),
       date: etdFormatted,
       lat: polLat,
       lng: polLng,
@@ -114,18 +120,14 @@ export function transformTracktainerShipment(item, detail = null) {
       name: attr.port_of_discharge?.name || attr.destination?.name || 'Karachi',
       code: attr.port_of_discharge?.code || attr.destination?.code || 'PKKHI',
       country: attr.port_of_discharge?.country?.name || 'Pakistan',
-      flag: '🇵🇰',
+      flag: flagFor(attr.port_of_discharge?.country?.code || 'PK'),
       date: etaFormatted,
       lat: podLat,
       lng: podLng,
     },
-    currentPosition: {
-      lat: curLat,
-      lng: curLng,
-      speedKnots: 15.2,
-      heading: 320,
-      statusDescription: `Underway (${vesselName})`,
-    },
+    currentPosition: hasLivePosition
+      ? { lat: curLat, lng: curLng, source: 'live', statusDescription: vesselName ? `Underway (${vesselName})` : 'Underway' }
+      : null,
     timeline: {
       eta: etaFormatted,
       ata: null,
@@ -137,17 +139,9 @@ export function transformTracktainerShipment(item, detail = null) {
       containersCount: attr.container_count || 1,
       transhipments: attr.transshipment_count || 0,
       transitTime: `${attr.transit_time || 26} days`,
-      carbon: `${attr.co2 || 1.55} t CO₂`,
+      ...(attr.co2 ? { carbon: `${attr.co2} t CO₂` } : {}),
     },
-    routePath: [
-      [polLat, polLng],
-      [24.5, 119.5],
-      [curLat, curLng],
-      [14.0, 112.0],
-      [2.0, 104.0],
-      [6.0, 80.0],
-      [podLat, podLng],
-    ],
+    routePath: buildRoute({ lat: polLat, lng: polLng }, { lat: podLat, lng: podLng }),
     milestones: milestones,
     lastSyncedAt: new Date().toISOString(),
   };

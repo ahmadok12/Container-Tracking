@@ -1,8 +1,8 @@
 /**
- * Tracktainer Google Sheets Sync Script
+ * JS Traders — Shipments Google Sheets sync script
  * ----------------------------------------------------
  * Instructions:
- * 1. Open your Google Sheet (e.g. "Tracktainer Shipments").
+ * 1. Open your Google Sheet (e.g. "JS Traders Shipments").
  * 2. Click "Extensions" -> "Apps Script".
  * 3. Delete everything in Code.gs and paste this entire code.
  * 4. Click "Deploy" (top right blue button) -> "New deployment".
@@ -71,7 +71,7 @@ function getOrCreateShipmentsSheet() {
     sheet.appendRow(headers);
     var headerRange = sheet.getRange(1, 1, 1, headers.length);
     headerRange.setFontWeight("bold");
-    headerRange.setBackground("#0284c7");
+    headerRange.setBackground("#0d7a4f");
     headerRange.setFontColor("#ffffff");
     sheet.setFrozenRows(1);
   }
@@ -125,7 +125,7 @@ function saveShipmentsToSheet(sheet, shipments) {
     var cNo = String(item.containerNumber || "").trim().toUpperCase();
     var rowValues = [
       cNo,
-      item.carrier || "Tracktainer",
+      item.carrier || "Carrier",
       item.vesselName || "",
       item.voyage || "",
       item.status || "In Transit",

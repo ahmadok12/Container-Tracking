@@ -1,5 +1,5 @@
 export const GOOGLE_APPS_SCRIPT_CODE = `/**
- * Tracktainer Google Sheets Database Engine
+ * JS Traders — Shipments Google Sheets database
  */
 
 function doGet(e) {
@@ -60,7 +60,7 @@ function getOrCreateShipmentsSheet() {
     sheet.appendRow(headers);
     var headerRange = sheet.getRange(1, 1, 1, headers.length);
     headerRange.setFontWeight("bold");
-    headerRange.setBackground("#0284c7");
+    headerRange.setBackground("#0d7a4f");
     headerRange.setFontColor("#ffffff");
     sheet.setFrozenRows(1);
   }

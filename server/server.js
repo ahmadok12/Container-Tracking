@@ -57,7 +57,7 @@ function loadSettings() {
     console.error('Error reading settings file:', err);
   }
   return {
-    tracktainerApiKey: process.env.TRACKTAINER_API_KEY || 'ca0853e15f63f20e1f02bc87166ed103bdeab9db',
+    tracktainerApiKey: process.env.TRACKTAINER_API_KEY || '',
     tracktainerBaseUrl: process.env.TRACKTAINER_BASE_URL || 'https://api.tracktainer.com/v1',
     googleSheetsUrl: '',
     googleSheetId: '',
@@ -616,5 +616,5 @@ app.post('/api/tracktainer/webhook', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Tracktainer Tracker Server running on port ${PORT}`);
+  console.log(`JS Traders shipment server running on port ${PORT}`);
 });

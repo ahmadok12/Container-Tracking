@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   X,
   FileSpreadsheet,
@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Copy,
-  ExternalLink,
   RefreshCw,
   Upload,
   Download,
@@ -24,7 +23,6 @@ import {
 } from '../utils/notifications';
 
 export default function IntegrationsModal({
-  isOpen,
   onClose,
   initialTab = 'sheets',
   settings,
@@ -32,8 +30,6 @@ export default function IntegrationsModal({
   onTriggerSync,
   shipments
 }) {
-  if (!isOpen) return null;
-
   const [activeTab, setActiveTab] = useState(initialTab);
   const [googleSheetsUrl, setGoogleSheetsUrl] = useState(settings?.googleSheetsUrl || '');
   const [tracktainerApiKey, setTracktainerApiKey] = useState(settings?.tracktainerApiKey || '');
@@ -48,7 +44,7 @@ export default function IntegrationsModal({
   const [tracktainerMessage, setTracktainerMessage] = useState('');
 
   const [copiedScript, setCopiedScript] = useState(false);
-  const [scriptCode, setScriptCode] = useState(GOOGLE_APPS_SCRIPT_CODE);
+  const scriptCode = GOOGLE_APPS_SCRIPT_CODE;
   const [showInstructions, setShowInstructions] = useState(true);
 
   const [notifPermission, setNotifPermission] = useState(getNotificationPermission());
@@ -61,15 +57,17 @@ export default function IntegrationsModal({
 
   const handleSendTestNotification = async () => {
     setTestAlertSent(true);
-    await sendShipmentNotification('TCNU2692599: Status Update', {
-      body: 'Container departed Taiwan Strait on APL CHONGQING. ETA: Oct 24, 2026.'
+    const s = shipments?.[0];
+    await sendShipmentNotification(s ? `${s.containerNumber}: test alert` : 'JS Traders test alert', {
+      body: s ? `${s.pol?.name} → ${s.pod?.name} · ETA ${s.timeline?.eta || '—'}` : 'Shipment alerts are working.'
     });
     setTimeout(() => setTestAlertSent(false), 2500);
   };
 
   const handleTestGoogleSheets = async () => {
     if (!googleSheetsUrl) {
-      alert('Please enter a Google Apps Script Web App URL first.');
+      setSheetsStatus('error');
+      setSheetsMessage('Paste your Apps Script Web App URL first.');
       return;
     }
     setIsTestingSheets(true);
@@ -96,19 +94,27 @@ export default function IntegrationsModal({
 
   const handleTestTracktainer = async () => {
     if (!tracktainerApiKey) {
-      alert('Please enter your Tracktainer API Key.');
+      setTracktainerStatus('error');
+      setTracktainerMessage('Enter your Tracktainer API key first.');
       return;
     }
     setIsTestingTracktainer(true);
     setTracktainerMessage('');
+    onSaveSettings({ tracktainerApiKey, tracktainerBaseUrl });
     try {
-      // Save setting immediately
-      onSaveSettings({ tracktainerApiKey, tracktainerBaseUrl });
-      setTracktainerStatus('success');
-      setTracktainerMessage('✓ Tracktainer API key verified & saved!');
-    } catch (err) {
+      const res = await fetch(`${tracktainerBaseUrl.replace(/\/$/, '')}/ocean/shipments`, {
+        headers: { Authorization: 'Bearer ' + tracktainerApiKey, Accept: 'application/vnd.api+json' },
+      });
+      if (res.ok) {
+        setTracktainerStatus('success');
+        setTracktainerMessage('Key works — live shipments will load on refresh.');
+      } else {
+        setTracktainerStatus('error');
+        setTracktainerMessage(res.status === 401 || res.status === 403 ? 'Key was rejected by Tracktainer.' : `Tracktainer returned ${res.status}.`);
+      }
+    } catch {
       setTracktainerStatus('error');
-      setTracktainerMessage(err.message);
+      setTracktainerMessage('Key saved, but Tracktainer could not be reached from this browser.');
     } finally {
       setIsTestingTracktainer(false);
     }
@@ -123,10 +129,10 @@ export default function IntegrationsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3">
-      <div className="bg-white rounded-2xl max-w-md w-full border border-[#ece8df] shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/45 backdrop-blur-[2px] sm:p-4">
+      <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-md w-full border border-sand-200 shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] animate-sheet">
         {/* Header */}
-        <div className="px-4 py-3.5 border-b border-slate-100 flex items-center justify-between bg-[#faf9f6]">
+        <div className="px-4 py-3.5 border-b border-slate-100 flex items-center justify-between bg-sand-50">
           <div>
             <h2 className="text-sm font-bold text-slate-900">
               Settings & Integrations
@@ -149,23 +155,23 @@ export default function IntegrationsModal({
             onClick={() => setActiveTab('sheets')}
             className={`py-2.5 px-3 text-xs font-bold flex items-center gap-1.5 border-b-2 transition-colors flex-1 justify-center ${
               activeTab === 'sheets'
-                ? 'border-[#0284c7] text-[#0284c7]'
+                ? 'border-brand-600 text-brand-600'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Google Sheets</span>
+            <span>Sheets</span>
           </button>
 
           <button
             onClick={() => setActiveTab('tracktainer')}
             className={`py-2.5 px-3 text-xs font-bold flex items-center gap-1.5 border-b-2 transition-colors flex-1 justify-center ${
               activeTab === 'tracktainer'
-                ? 'border-[#0284c7] text-[#0284c7]'
+                ? 'border-brand-600 text-brand-600'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            <Key className="w-3.5 h-3.5 text-[#0284c7]" />
+            <Key className="w-3.5 h-3.5 text-brand-600" />
             <span>Tracktainer</span>
           </button>
 
@@ -173,7 +179,7 @@ export default function IntegrationsModal({
             onClick={() => setActiveTab('notifications')}
             className={`py-2.5 px-3 text-xs font-bold flex items-center gap-1.5 border-b-2 transition-colors flex-1 justify-center ${
               activeTab === 'notifications'
-                ? 'border-[#0284c7] text-[#0284c7]'
+                ? 'border-brand-600 text-brand-600'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -187,7 +193,7 @@ export default function IntegrationsModal({
           {activeTab === 'sheets' && (
             <div className="space-y-3.5">
               {/* Web App URL card */}
-              <div className="bg-[#f0f9ff]/60 rounded-xl p-3.5 border border-[#bae6fd]">
+              <div className="bg-brand-50/60 rounded-xl p-3.5 border border-brand-200">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="font-bold text-slate-900 uppercase text-[10px] tracking-wider">
                     Google Sheets Webhook URL
@@ -208,12 +214,12 @@ export default function IntegrationsModal({
                     value={googleSheetsUrl}
                     onChange={(e) => setGoogleSheetsUrl(e.target.value)}
                     placeholder="https://script.google.com/macros/s/.../exec"
-                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0284c7] bg-white font-mono"
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white font-mono"
                   />
                   <button
                     onClick={handleTestGoogleSheets}
                     disabled={isTestingSheets}
-                    className="w-full py-2 bg-[#0284c7] hover:bg-[#0369a1] text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    className="w-full py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isTestingSheets ? 'animate-spin' : ''}`} />
                     <span>{isTestingSheets ? 'Connecting...' : 'Save & Test Connection'}</span>
@@ -260,7 +266,7 @@ export default function IntegrationsModal({
                   onClick={() => setShowInstructions(!showInstructions)}
                 >
                   <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px]">
-                    <HelpCircle className="w-3.5 h-3.5 text-[#0284c7]" />
+                    <HelpCircle className="w-3.5 h-3.5 text-brand-600" />
                     <span>How to get Google Sheets URL (1 Min)</span>
                   </div>
                   {showInstructions ? <ChevronUp className="w-3.5 h-3.5 text-slate-400" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
@@ -269,7 +275,7 @@ export default function IntegrationsModal({
                 {showInstructions && (
                   <div className="mt-2.5 space-y-2 text-[11px] text-slate-600 leading-relaxed border-t border-slate-200/80 pt-2">
                     <ol className="space-y-1 list-decimal list-inside">
-                      <li>Create a new sheet at <a href="https://sheets.new" target="_blank" rel="noreferrer" className="text-[#0284c7] font-bold underline">sheets.new</a></li>
+                      <li>Create a new sheet at <a href="https://sheets.new" target="_blank" rel="noreferrer" className="text-brand-600 font-bold underline">sheets.new</a></li>
                       <li>Click <b>Extensions → Apps Script</b> in top menu.</li>
                       <li>Delete existing code and paste the script below.</li>
                       <li>Click <b>Deploy → New deployment</b>:
@@ -284,7 +290,7 @@ export default function IntegrationsModal({
 
                     <button
                       onClick={handleCopyScript}
-                      className="w-full mt-2 py-1.5 px-3 text-[11px] font-bold rounded-lg bg-white border border-slate-200 text-[#0284c7] hover:bg-slate-100 flex items-center justify-center gap-1.5 shadow-2xs"
+                      className="w-full mt-2 py-1.5 px-3 text-[11px] font-bold rounded-lg bg-white border border-slate-200 text-brand-600 hover:bg-slate-100 flex items-center justify-center gap-1.5 shadow-2xs"
                     >
                       {copiedScript ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                       <span>{copiedScript ? 'Copied Apps Script Code!' : 'Copy Ready-to-Paste Script'}</span>
@@ -310,18 +316,9 @@ export default function IntegrationsModal({
                     value={tracktainerApiKey}
                     onChange={(e) => setTracktainerApiKey(e.target.value)}
                     placeholder="e.g. tk_live_..."
-                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0284c7] font-mono"
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-600 font-mono"
                   />
-                  <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
-                    <span>From tracktainer.com portal</span>
-                    <button
-                      type="button"
-                      onClick={() => setTracktainerApiKey('tk_live_demo_9375513_kmtc')}
-                      className="text-[#0284c7] font-semibold hover:underline"
-                    >
-                      Fill Demo Key
-                    </button>
-                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">Stored only on this device.</p>
                 </div>
 
                 <div>
@@ -339,7 +336,7 @@ export default function IntegrationsModal({
                 <button
                   onClick={handleTestTracktainer}
                   disabled={isTestingTracktainer}
-                  className="w-full py-2 bg-[#0284c7] hover:bg-[#0369a1] text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  className="w-full py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isTestingTracktainer ? 'animate-spin' : ''}`} />
                   <span>{isTestingTracktainer ? 'Verifying...' : 'Verify API Key'}</span>
@@ -361,7 +358,7 @@ export default function IntegrationsModal({
                   Tracktainer Webhook URL
                 </span>
                 <p className="text-[10px] text-slate-500">
-                  Configure this webhook in Tracktainer for automated updates:
+                  Needs the Node server (npm run server) running on a public address:
                 </p>
                 <code className="block bg-white p-2 rounded-md border border-slate-200 text-[11px] font-mono text-slate-800 break-all select-all">
                   {window.location.origin}/api/tracktainer/webhook
@@ -418,7 +415,7 @@ export default function IntegrationsModal({
                 {notifPermission !== 'granted' ? (
                   <button
                     onClick={handleRequestNotifications}
-                    className="w-full py-2 bg-[#0284c7] hover:bg-[#0369a1] text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                    className="w-full py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5"
                   >
                     <Bell className="w-3.5 h-3.5" />
                     <span>Enable Push Notifications</span>
@@ -445,7 +442,7 @@ export default function IntegrationsModal({
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-2.5 border-t border-slate-100 flex items-center justify-end bg-[#faf9f6]">
+        <div className="px-4 py-2.5 border-t border-slate-100 flex items-center justify-end bg-sand-50">
           <button
             onClick={onClose}
             className="px-4 py-1.5 text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 rounded-lg transition-colors"
