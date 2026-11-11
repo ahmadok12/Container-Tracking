@@ -15,7 +15,7 @@ import {
 } from './utils/storage';
 import { fetchLiveTracktainerShipments } from './utils/tracktainerApi';
 import { sendShipmentNotification } from './utils/notifications';
-import { applyStatusUpdate, delayLabel, sameShipment } from './utils/shipments';
+import { applyStatusUpdate, autoCloseOverdue, delayLabel, sameShipment } from './utils/shipments';
 
 const IntegrationsModal = lazy(() => import('./components/IntegrationsModal'));
 
@@ -25,7 +25,7 @@ const postLocal = (url, method, body) =>
     : Promise.resolve();
 
 export default function App() {
-  const [shipments, setShipments] = useState(getStoredShipments);
+  const [shipments, setShipments] = useState(() => autoCloseOverdue(getStoredShipments()).list);
   const [selectedId, setSelectedId] = useState(null);
   const [settings, setSettings] = useState(getStoredSettings);
   const [modal, setModal] = useState(null); // 'track' | 'status' | 'settings'
@@ -80,30 +80,38 @@ export default function App() {
     if (settings.googleSheetsUrl && settings.autoSyncToSheets) syncDirectToGoogleSheets(settings.googleSheetsUrl, list);
   };
 
-  const refresh = useCallback(async () => {
-    setIsSyncing(true);
-    try {
-      if (settings.tracktainerApiKey) {
-        const live = await fetchLiveTracktainerShipments(settings.tracktainerApiKey);
-        if (live?.length) {
-          // merge: live data wins, keep manually-added shipments that Tracktainer doesn't know
-          setShipments((prev) => [...live, ...prev.filter((p) => !live.some((l) => sameShipment(l, p)))]);
-          return;
+  // manual = user tapped refresh, so tell them what happened
+  const refresh = useCallback(
+    async (manual = false) => {
+      setIsSyncing(true);
+      let message = null;
+      try {
+        if (settings.tracktainerApiKey) {
+          const { shipments: live, error } = await fetchLiveTracktainerShipments(settings.tracktainerApiKey, settings.tracktainerBaseUrl);
+          if (error) message = { text: error, type: 'error' };
+          else {
+            // live data wins; keep manually-added shipments Tracktainer doesn't know about
+            setShipments((prev) => autoCloseOverdue([...live, ...prev.filter((p) => !live.some((l) => sameShipment(l, p)))]).list);
+            message = { text: `Loaded ${live.length} shipment(s) from Tracktainer` };
+          }
+        } else if (manual) {
+          message = { text: 'Add your Tracktainer API key in Settings to load portal shipments', type: 'error' };
         }
-      }
-      if (isLocalServer()) {
-        const res = await fetch('/api/shipments');
-        if (res.ok && res.headers.get('content-type')?.includes('json')) {
-          const data = await res.json();
-          if (data.success && data.shipments?.length) setShipments(data.shipments);
+        if (isLocalServer()) {
+          const res = await fetch('/api/shipments').catch(() => null);
+          if (res?.ok && res.headers.get('content-type')?.includes('json')) {
+            const data = await res.json();
+            if (data.success && data.shipments?.length && !settings.tracktainerApiKey) setShipments(autoCloseOverdue(data.shipments).list);
+          }
         }
+        setShipments((prev) => autoCloseOverdue(prev).list);
+      } finally {
+        setIsSyncing(false);
+        if (message && (manual || message.type === 'error')) showToast(message.text, message.type);
       }
-    } catch (err) {
-      console.warn('Refresh failed:', err);
-    } finally {
-      setIsSyncing(false);
-    }
-  }, [settings.tracktainerApiKey]);
+    },
+    [settings.tracktainerApiKey, settings.tracktainerBaseUrl, showToast]
+  );
 
   useEffect(() => {
     refresh();
@@ -201,7 +209,7 @@ export default function App() {
             onOpenSettings={() => setModal('settings')}
             googleSheetsConnected={!!settings.googleSheetsUrl}
             isSyncing={isSyncing}
-            onRefresh={refresh}
+            onRefresh={() => refresh(true)}
             hasInstallPrompt={!!installPrompt}
             onInstallApp={handleInstall}
           />

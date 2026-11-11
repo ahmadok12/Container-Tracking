@@ -15,7 +15,8 @@ export default function UpdateStatusModal({ shipment, onClose, onUpdateStatus, g
   const [location, setLocation] = useState(`${shipment.pod?.name || ''}${shipment.pod?.country ? `, ${shipment.pod.country}` : ''}`);
   const [saving, setSaving] = useState(false);
 
-  const showAta = ARRIVAL.has(status) || !!ata;
+  const showAta = ARRIVAL.has(status);
+  const etaPassed = !ARRIVAL.has(status) && eta && new Date(`${eta}T00:00`).getTime() + Math.max(delayDays, 0) * 86400000 < new Date().setHours(0, 0, 0, 0);
 
   const changeStatus = (value) => {
     setStatus(value);
@@ -102,8 +103,8 @@ export default function UpdateStatusModal({ shipment, onClose, onUpdateStatus, g
         </Field>
 
         <div className={`grid gap-3 ${showAta ? 'grid-cols-2' : 'grid-cols-1'}`}>
-          <Field label="ETA">
-            <input type="date" value={eta} onChange={(e) => setEta(e.target.value)} className={inputCls} />
+          <Field label="ETA" hint={etaPassed ? 'This date has passed, so the shipment will be marked arrived. Set the new ETA if it is still at sea.' : null}>
+            <input type="date" value={eta} onChange={(e) => setEta(e.target.value)} className={`${inputCls} ${etaPassed ? 'border-amber-400' : ''}`} />
           </Field>
           {showAta && (
             <Field label="Arrived on (ATA)">
