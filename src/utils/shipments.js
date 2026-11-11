@@ -120,8 +120,9 @@ export const voyageProgress = (s) => {
   return Math.min(1, Math.max(0, (Date.now() - dep) / (eta - dep)));
 };
 
+// days until the delay-adjusted ETA
 export const daysToEta = (s) => {
-  const eta = parseDate(s?.timeline?.eta || s?.pod?.date);
+  const eta = effectiveEta(s);
   if (!eta) return null;
   return Math.ceil((eta - Date.now()) / DAY);
 };
@@ -243,6 +244,7 @@ export const buildShipment = (form) => {
 export const applyStatusUpdate = (s, u) => {
   const next = { ...s, timeline: { ...(s.timeline || {}) } };
   if (u.status) next.status = u.status;
+  next.autoClosed = false;
   if (u.delayDays !== undefined) {
     next.delayDays = Number(u.delayDays) || 0;
     next.statusBadge = delayLabel(next.delayDays);
@@ -278,3 +280,62 @@ export const sortMilestones = (list = []) =>
 
 export const sameShipment = (a, b) =>
   !!a && !!b && (a.id === b.id || a.containerNumber === b.containerNumber);
+
+// ---------- Auto close ----------
+// ETA pushed out by any recorded delay (delay days are on top of the ETA)
+export const effectiveEta = (s) => {
+  const eta = parseDate(s?.timeline?.eta || s?.pod?.date);
+  if (!eta) return null;
+  return new Date(eta.getTime() + Math.max(Number(s?.delayDays) || 0, 0) * DAY);
+};
+
+const startOfToday = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+export const isOverdue = (s) => {
+  if (isArrived(s)) return false;
+  const eta = effectiveEta(s);
+  return !!eta && eta < startOfToday();
+};
+
+const closeMilestones = (s, arrivedOn) => {
+  const today0 = startOfToday();
+  const list = (s.milestones || []).map((m) =>
+    m.type === 'PLANNED' && (parseDate(m.date) ?? today0) < today0 ? { ...m, type: 'ACTUAL' } : m
+  );
+  if (list.some((m) => /arriv/i.test(m.event || '') && m.type === 'ACTUAL')) return list;
+  return [
+    ...list,
+    {
+      id: uid('m'),
+      date: arrivedOn,
+      type: 'ACTUAL',
+      location: `${s.pod?.name || ''}${s.pod?.country ? `, ${s.pod.country}` : ''}`,
+      countryFlag: s.pod?.flag || '📍',
+      event: 'Arrived (auto-closed after ETA)',
+      vesselInfo: s.vesselName || s.carrier || '',
+    },
+  ];
+};
+
+// Marks shipments whose (delay-adjusted) ETA is before today as Arrived.
+// Tracktainer shipments are left alone — their status comes from the carrier.
+export const autoCloseOverdue = (list) => {
+  let changed = 0;
+  const next = list.map((s) => {
+    if (s.source === 'tracktainer' || !isOverdue(s)) return s;
+    changed += 1;
+    const arrivedOn = formatDate(effectiveEta(s));
+    return {
+      ...s,
+      status: 'Arrived',
+      autoClosed: true,
+      timeline: { ...(s.timeline || {}), ata: arrivedOn },
+      milestones: closeMilestones(s, arrivedOn),
+    };
+  });
+  return { list: changed ? next : list, changed };
+};

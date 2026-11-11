@@ -214,6 +214,15 @@ export default function TrackingDetailScreen({ shipment, onBack, onOpenStatusMod
       </header>
 
       <main className="space-y-3 p-3.5">
+        {shipment.autoClosed && (
+          <div className="rounded-2xl bg-amber-50 p-3.5 text-xs text-amber-900 ring-1 ring-amber-200">
+            <span className="font-bold">Marked arrived automatically</span> because its ETA passed. Still at sea?{' '}
+            <button onClick={() => onOpenStatusModal(shipment)} className="font-bold underline">
+              Update the status and set a new ETA
+            </button>
+            .
+          </div>
+        )}
         <Summary shipment={shipment} />
 
         <section className="relative isolate h-64 overflow-hidden rounded-2xl ring-1 ring-sand-200">

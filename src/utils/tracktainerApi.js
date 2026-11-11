@@ -31,7 +31,7 @@ export function transformTracktainerShipment(item, detail = null) {
   const attr = (detail && detail.data && detail.data.attributes) || item.attributes;
   const id = (detail && detail.data && detail.data.id) || item.id;
 
-  const containerNumber = attr.shipment_number;
+  const containerNumber = String(attr.containers?.[0]?.number || attr.shipment_number || '').toUpperCase();
   const carrierName = attr.carrier?.name || 'Ocean Carrier';
   const delayDays = attr.delay_days || 0;
   const etaFormatted = formatDate(attr.eta);
@@ -96,6 +96,7 @@ export function transformTracktainerShipment(item, detail = null) {
 
   return {
     id: id,
+    source: 'tracktainer',
     containerNumber: containerNumber,
     blNumber: `${attr.carrier?.scac || 'BL'}-${containerNumber}`,
     carrier: carrierName,
@@ -147,44 +148,33 @@ export function transformTracktainerShipment(item, detail = null) {
   };
 }
 
-export async function fetchLiveTracktainerShipments(apiKey) {
-  if (!apiKey) return null;
+// Returns { shipments, error } — error is a human-readable reason when nothing could be loaded
+export async function fetchLiveTracktainerShipments(apiKey, baseUrl = 'https://api.tracktainer.com/v1') {
+  if (!apiKey) return { shipments: [], error: 'no-key' };
+  const base = baseUrl.replace(/\/$/, '');
+  const headers = { Authorization: 'Bearer ' + apiKey, Accept: 'application/vnd.api+json' };
 
+  let listData;
   try {
-    const listRes = await fetch('https://api.tracktainer.com/v1/ocean/shipments', {
-      method: 'GET',
-      headers: {
-        Authorization: 'Bearer ' + apiKey,
-        Accept: 'application/vnd.api+json',
-      },
-    });
-
-    if (!listRes.ok) return null;
-    const listData = await listRes.json();
-    if (!listData.data || !Array.isArray(listData.data)) return null;
-
-    // Fetch details for each to get movements & exact coordinates
-    const shipments = await Promise.all(
-      listData.data.map(async (item) => {
-        try {
-          const detailRes = await fetch(`https://api.tracktainer.com/v1/ocean/shipments/${item.id}`, {
-            headers: {
-              Authorization: 'Bearer ' + apiKey,
-              Accept: 'application/vnd.api+json',
-            },
-          });
-          if (detailRes.ok) {
-            const detailData = await detailRes.json();
-            return transformTracktainerShipment(item, detailData);
-          }
-        } catch (e) {}
-        return transformTracktainerShipment(item);
-      })
-    );
-
-    return shipments;
-  } catch (err) {
-    console.warn('Tracktainer fetch warning:', err);
-    return null;
+    const listRes = await fetch(`${base}/ocean/shipments?page[size]=100`, { headers });
+    if (listRes.status === 401 || listRes.status === 403) return { shipments: [], error: 'Tracktainer rejected the API key.' };
+    if (!listRes.ok) return { shipments: [], error: `Tracktainer returned error ${listRes.status}.` };
+    listData = await listRes.json();
+  } catch {
+    return { shipments: [], error: 'Could not reach Tracktainer from this browser (network or CORS block).' };
   }
+  if (!Array.isArray(listData?.data)) return { shipments: [], error: 'Unexpected reply from Tracktainer.' };
+
+  const shipments = await Promise.all(
+    listData.data.map(async (item) => {
+      try {
+        const res = await fetch(`${base}/ocean/shipments/${item.id}`, { headers });
+        if (res.ok) return transformTracktainerShipment(item, await res.json());
+      } catch {
+        /* fall back to list data */
+      }
+      return transformTracktainerShipment(item);
+    })
+  );
+  return { shipments: shipments.filter((s) => s.containerNumber), error: null };
 }

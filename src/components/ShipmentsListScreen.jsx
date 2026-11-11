@@ -5,10 +5,9 @@ import { statusGroup, voyageProgress, daysToEta } from '../utils/shipments';
 import { getNotificationPermission, requestNotificationPermission } from '../utils/notifications';
 
 const FILTERS = [
-  { id: 'all', label: 'All' },
-  { id: 'transit', label: 'On schedule' },
-  { id: 'delayed', label: 'Delayed' },
-  { id: 'arrived', label: 'Arrived' },
+  { id: 'active', label: 'Active', match: (g) => g !== 'arrived' },
+  { id: 'delayed', label: 'Delayed', match: (g) => g === 'delayed' },
+  { id: 'arrived', label: 'Arrived', match: (g) => g === 'arrived' },
 ];
 
 function etaText(s) {
@@ -18,7 +17,7 @@ function etaText(s) {
   if (d > 1) return `${d} days to go`;
   if (d === 1) return 'Arrives tomorrow';
   if (d === 0) return 'Arrives today';
-  return `Overdue ${Math.abs(d)}d · mark arrived?`;
+  return `Overdue ${Math.abs(d)}d`;
 }
 
 function ShipmentCard({ shipment, onOpen }) {
@@ -84,20 +83,21 @@ export default function ShipmentsListScreen({
   onInstallApp,
 }) {
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('active');
   const [notif, setNotif] = useState(getNotificationPermission);
 
   const counts = useMemo(() => {
-    const c = { all: shipments.length, transit: 0, delayed: 0, arrived: 0 };
-    shipments.forEach((s) => (c[statusGroup(s)] += 1));
+    const c = { active: 0, delayed: 0, arrived: 0 };
+    shipments.forEach((s) => FILTERS.forEach((f) => f.match(statusGroup(s)) && (c[f.id] += 1)));
     return c;
   }, [shipments]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const f = FILTERS.find((x) => x.id === filter);
     return shipments.filter((s) => {
-      if (filter !== 'all' && statusGroup(s) !== filter) return false;
-      if (!q) return true;
+      // searching looks across every shipment, including arrived ones
+      if (!q) return f.match(statusGroup(s));
       return [s.containerNumber, s.blNumber, s.carrier, s.vesselName, s.goods, s.supplier, s.pol?.name, s.pod?.name, s.status]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
@@ -145,13 +145,13 @@ export default function ShipmentsListScreen({
         {/* Summary */}
         <section className="grid grid-cols-3 gap-2.5">
           {[
-            { id: 'transit', label: 'On schedule', tone: 'text-brand-700' },
+            { id: 'active', label: 'Active', tone: 'text-brand-700' },
             { id: 'delayed', label: 'Delayed', tone: 'text-red-600' },
             { id: 'arrived', label: 'Arrived', tone: 'text-slate-700' },
           ].map((k) => (
             <button
               key={k.id}
-              onClick={() => setFilter(filter === k.id ? 'all' : k.id)}
+              onClick={() => setFilter(filter === k.id ? 'active' : k.id)}
               className={`rounded-2xl bg-white px-3 py-3 text-left ring-1 transition ${
                 filter === k.id ? 'ring-2 ring-brand-500' : 'ring-sand-200'
               }`}
@@ -179,26 +179,26 @@ export default function ShipmentsListScreen({
           )}
         </div>
 
-        {filter !== 'all' && (
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-slate-600">
-              Showing {FILTERS.find((f) => f.id === filter).label.toLowerCase()} · {visible.length}
-            </span>
-            <button onClick={() => setFilter('all')} className="font-bold text-brand-700">
-              Show all
+        <div className="flex items-center justify-between px-1 text-xs">
+          <span className="font-bold text-slate-700">
+            {query ? `Search results · ${visible.length}` : filter === 'active' ? 'Active shipments' : filter === 'delayed' ? 'Delayed shipments' : 'Arrived (history)'}
+          </span>
+          {filter !== 'active' && !query && (
+            <button onClick={() => setFilter('active')} className="font-bold text-brand-700">
+              Back to active
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
         <section className="space-y-3">
           {visible.length === 0 ? (
             <div className="rounded-2xl bg-white px-6 py-10 text-center ring-1 ring-sand-200">
               <Ship className="mx-auto h-8 w-8 text-slate-300" />
               <p className="mt-2 text-sm font-semibold text-slate-700">
-                {shipments.length ? 'No shipments match' : 'No shipments yet'}
+                {query ? 'No shipments match' : shipments.length ? (filter === 'arrived' ? 'Nothing has arrived yet' : 'No active shipments') : 'No shipments yet'}
               </p>
               <p className="mt-1 text-xs text-slate-400">
-                {shipments.length ? 'Try a different search or filter.' : 'Add your first container to start tracking.'}
+                {query ? 'Try a different search.' : shipments.length ? 'Tap + to add a new container.' : 'Add your first container to start tracking.'}
               </p>
               {!shipments.length && (
                 <button onClick={onOpenTrackModal} className="mt-4 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white">
