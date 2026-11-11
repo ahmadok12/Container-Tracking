@@ -4,7 +4,7 @@ export const registerServiceWorker = async () => {
   if ('serviceWorker' in navigator) {
     try {
       const reg = await navigator.serviceWorker.register('./sw.js', { scope: './' });
-      console.log('Tracktainer Service Worker registered:', reg.scope);
+      
       return reg;
     } catch (err) {
       console.warn('Service Worker registration failed:', err);
@@ -23,8 +23,8 @@ export const requestNotificationPermission = async () => {
   try {
     const perm = await Notification.requestPermission();
     if (perm === 'granted') {
-      sendShipmentNotification('Tracktainer Notifications Active', {
-        body: 'You will receive real-time alerts whenever shipment status, ETA, or delays update.',
+      sendShipmentNotification('JS Traders alerts are on', {
+        body: 'You will be alerted when a shipment status, ETA or delay changes.',
       });
     }
     return perm;
@@ -60,6 +60,7 @@ export const playNotificationChime = () => {
 
 // Send Push Notification
 export const sendShipmentNotification = async (title, options = {}) => {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return false;
   playNotificationChime();
 
   const body = options.body || 'Shipment status updated.';
@@ -74,7 +75,7 @@ export const sendShipmentNotification = async (title, options = {}) => {
         await reg.showNotification(title, {
           body: body,
           icon: icon,
-          badge: './favicon.svg',
+          badge: './icon-192.png',
           vibrate: [120, 80, 120],
           tag: tag,
           data: { url: window.location.href },

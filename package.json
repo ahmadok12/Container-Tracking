@@ -1,7 +1,7 @@
 {
-  "name": "tracktainer-tracker",
+  "name": "js-traders-shipments",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "concurrently \"node server/server.js\" \"vite\"",
@@ -18,8 +18,7 @@
     "leaflet": "^1.9.4",
     "lucide-react": "^1.52.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "react-leaflet": "^5.0.0"
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
