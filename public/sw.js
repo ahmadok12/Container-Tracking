@@ -1,9 +1,8 @@
 // Service worker: app shell works offline, last tracking data is shown when offline.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL = `shell-${VERSION}`;
 const DATA = `data-${VERSION}`;
-const LIBS = `tiles-${VERSION}`;
-const SHELL_FILES = ['/', '/index.html', '/styles.css', '/app.js', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/apple-touch-icon.png', '/vendor/leaflet/leaflet.js', '/vendor/leaflet/leaflet.css'];
+const SHELL_FILES = ['/', '/index.html', '/styles.css', '/app.js', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/apple-touch-icon.png', '/vendor/leaflet/leaflet.js', '/vendor/leaflet/leaflet.css', '/world.json'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(SHELL).then((c) => c.addAll(SHELL_FILES)).then(() => self.skipWaiting()));
@@ -12,7 +11,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => ![SHELL, DATA, LIBS].includes(k)).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => ![SHELL, DATA].includes(k)).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
@@ -32,15 +31,6 @@ self.addEventListener('fetch', (e) => {
         })
         .catch(() => caches.match(req).then((hit) => hit || Response.error())),
     );
-    return;
-  }
-
-  // Map tiles: cache first so recently viewed areas show offline.
-  if (url.hostname.endsWith('basemaps.cartocdn.com')) {
-    e.respondWith(caches.open(LIBS).then((c) => c.match(req).then((hit) => hit || fetch(req).then((res) => {
-      if (res.ok || res.type === 'opaque') c.put(req, res.clone());
-      return res;
-    }))));
     return;
   }
 

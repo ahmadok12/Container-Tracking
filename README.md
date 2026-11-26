@@ -95,7 +95,7 @@ redeploy, check the app loads, then revoke the old key.
 
 | Path | What it is |
 |---|---|
-| `public/` | The app: `index.html`, `styles.css`, `app.js`, service worker `sw.js`, `manifest.webmanifest`, icons, bundled Leaflet map library |
+| `public/` | The app: `index.html`, `styles.css`, `app.js`, service worker `sw.js`, `manifest.webmanifest`, icons, bundled Leaflet map library and `world.json` coastlines |
 | `lib/proxy.js` | The secure read-only proxy (shared by both hosts) |
 | `lib/demo-data.js` | Sample shipments for demo mode |
 | `api/tracktainer.js` | Vercel function wrapper |
@@ -108,4 +108,4 @@ redeploy, check the app loads, then revoke the old key.
 - Data comes from Tracktainer's v1 API (`/ocean/shipments`, `/route`,
   `/eta-changes`). Responses are cached at the edge for 5 minutes to stay well
   under Tracktainer's 100 requests/minute limit.
-- Map tiles: © OpenStreetMap contributors © CARTO. Map library: Leaflet (BSD-2).
+- Map: coastlines and borders from Natural Earth (public domain), bundled in `public/world.json`, so no map tile service or key is needed and the map works offline. Map library: Leaflet (BSD-2).
