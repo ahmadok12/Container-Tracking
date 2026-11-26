@@ -468,7 +468,7 @@ async function renderTrack(id, container) {
       ? `The arrival date changed ${changes.length === 1 ? 'once' : `${changes.length} times`}. Last change: ${fmtShort(changes[0].old_eta)} → ${fmtShort(changes[0].new_eta)}.`
       : 'No changes to the arrival date so far.';
     etaBox = `<div class="eta-box"><div class="days">${n}<small>${unit}</small></div>
-      <p>Expected at ${esc(placeName(d.destination) || 'destination')} on <b>${esc(fmtDate(d.eta))}</b>${d.delayDays > 0 ? `, <b style="color:#F5C451">${d.delayDays} day${d.delayDays === 1 ? '' : 's'} later</b> than first planned` : ''}.<br><span>${esc(changeTxt)}</span></p></div>`;
+      <p>Expected at ${esc(placeName(d.destination) || 'destination')} on <b>${esc(fmtDate(d.eta))}</b>${d.delayDays > 0 ? `, <b class="late">${d.delayDays} day${d.delayDays === 1 ? '' : 's'} later</b> than first planned` : ''}.<br><span>${esc(changeTxt)}</span></p></div>`;
   }
 
   const moves = (ctr?.movements || []).slice().sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
@@ -540,6 +540,28 @@ function renderHelp() {
 /* ------------------------------------------------------------------ */
 
 let map = null;
+let world = null;
+
+// Coastlines come from a bundled Natural Earth file, so the map needs no tile
+// service and no key, and works offline.
+function loadWorld() {
+  if (!world) world = fetch('/world.json').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  return world;
+}
+
+async function drawLand(m, shifted) {
+  const w = await loadWorld();
+  if (!w || m !== map) return;
+  const L = window.L;
+  const offsets = shifted ? [0, 360] : [0];
+  for (const dx of offsets) {
+    const move = (c) => (typeof c[0] === 'number' ? [c[0] + dx, c[1]] : c.map(move));
+    const land = dx ? { type: 'MultiPolygon', coordinates: move(w.land.coordinates) } : w.land;
+    const borders = dx ? { type: 'MultiLineString', coordinates: move(w.borders.coordinates) } : w.borders;
+    L.geoJSON(borders, { interactive: false, style: { color: '#E4DDD4', weight: 0.8, fill: false } }).addTo(m).bringToBack();
+    L.geoJSON(land, { interactive: false, style: { stroke: true, color: '#D9D2C9', weight: 1, fillColor: '#F7F3EE', fillOpacity: 1 } }).addTo(m).bringToBack();
+  }
+}
 
 function unwrapCoords(features) {
   // Keep Pacific crossings in one piece: shift western longitudes by +360.
@@ -577,13 +599,10 @@ function drawMap(d) {
   el.querySelector('.map-fallback')?.remove();
 
   const L = window.L;
-  map = L.map(mapDiv, { zoomControl: false, attributionControl: true, worldCopyJump: false });
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    maxZoom: 12, subdomains: 'abcd',
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
-  }).addTo(map);
-
+  map = L.map(mapDiv, { zoomControl: false, attributionControl: true, worldCopyJump: false, preferCanvas: true, minZoom: 1, maxZoom: 7 });
+  map.attributionControl.setPrefix(false).addAttribution('Map data: Natural Earth');
   const ll = unwrapCoords(features);
+  drawLand(map, ll([-179, 0])[1] > 180);
   const bounds = [];
   const lines = (g) => (g.type === 'LineString' ? [g.coordinates] : g.type === 'MultiLineString' ? g.coordinates : []);
 
