@@ -214,7 +214,7 @@ function routeText(s) {
 function rowHtml(s) {
   return `<a class="row" href="#/track/${esc(s.id)}">
     <span class="ship-ico">${containerIcon}</span>
-    <span class="t"><b>${esc(s.number || 'Unknown number')}</b><small>${esc(s.name ? `${s.name} · ` : '')}${esc(routeText(s))}</small></span>
+    <span class="t"><b>${esc(s.number || 'Unknown number')}</b><small>${esc(s.name ? `${s.name} · ` : '')}${esc(routeText(s))}</small>${s.eta && !s.failure ? `<span class="row-eta">${s.status === 'ARRIVED' || s.status === 'COMPLETED' ? 'Arrived' : 'Arrives'} ${esc(fmtDate(s.eta))}</span>` : ''}</span>
     ${pill(s)}
   </a>`;
 }
@@ -226,6 +226,31 @@ function endsInner(s) {
       <div><small>${esc(arr)}</small><b>${esc(placeName(s.destination) || '—')}</b></div>`;
 }
 
+const weekdayFmt = new Intl.DateTimeFormat('en-GB', { weekday: 'long' });
+const bigDayFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
+
+// Large, easy-to-read arrival date block.
+function etaHero(s) {
+  if (!s.eta || s.failure || s.status === 'CANCELLED') return '';
+  const day = parseDay(s.eta);
+  const away = daysFromToday(s.eta);
+  const arrived = s.status === 'ARRIVED' || s.status === 'COMPLETED';
+  const label = arrived ? 'Arrived on' : 'Expected arrival';
+  let count = '', unit = '';
+  if (!arrived) {
+    if (away > 0) { count = away; unit = away === 1 ? 'day left' : 'days left'; }
+    else if (away === 0) { count = 'Today'; unit = ''; }
+    else { count = 'Late'; unit = 'any day now'; }
+  }
+  const late = !arrived && s.delayDays > 0 ? `<span class="eta-late">${s.delayDays} day${s.delayDays === 1 ? '' : 's'} late</span>` : '';
+  return `<div class="eta-hero ${arrived ? 'done' : ''}">
+    <div class="eta-main"><span class="eta-lbl">${label}${s.destination ? ` · ${esc(s.destination.name)}` : ''}</span>
+      <span class="eta-date">${esc(bigDayFmt.format(day))}</span>
+      <span class="eta-sub">${esc(`${weekdayFmt.format(day)}, ${day.getFullYear()}`)}${late}</span></div>
+    ${count !== '' ? `<div class="eta-count"><b>${esc(count)}</b>${unit ? `<small>${esc(unit)}</small>` : ''}</div>` : '<div class="eta-count ok"><b>✓</b><small>arrived</small></div>'}
+  </div>`;
+}
+
 function currentCard(s, container) {
   return `<a class="card link" href="#/track/${esc(s.id)}">
     <div class="ship-head">
@@ -233,6 +258,7 @@ function currentCard(s, container) {
       <span class="t"><b>${esc(s.number)}</b><small>${esc([s.carrier?.name, s.name].filter(Boolean).join(' · ') || 'Container')}</small></span>
       ${pill(s)}
     </div>
+    ${etaHero(s)}
     ${stepper(s, container)}
     <div class="ends">
       ${endsInner(s)}
@@ -462,13 +488,10 @@ async function renderTrack(id, container) {
   let etaBox = '';
   if (d.eta && !['COMPLETED', 'CANCELLED'].includes(d.status) && !d.failure) {
     const changes = d.etaChanges || [];
-    const n = d.status === 'ARRIVED' ? '✓' : away > 0 ? away : away === 0 ? '0' : '!';
-    const unit = d.status === 'ARRIVED' ? 'arrived' : away > 0 ? (away === 1 ? 'day left' : 'days left') : away === 0 ? 'today' : 'overdue';
     const changeTxt = changes.length
       ? `The arrival date changed ${changes.length === 1 ? 'once' : `${changes.length} times`}. Last change: ${fmtShort(changes[0].old_eta)} → ${fmtShort(changes[0].new_eta)}.`
       : 'No changes to the arrival date so far.';
-    etaBox = `<div class="eta-box"><div class="days">${n}<small>${unit}</small></div>
-      <p>Expected at ${esc(placeName(d.destination) || 'destination')} on <b>${esc(fmtDate(d.eta))}</b>${d.delayDays > 0 ? `, <b class="late">${d.delayDays} day${d.delayDays === 1 ? '' : 's'} later</b> than first planned` : ''}.<br><span>${esc(changeTxt)}</span></p></div>`;
+    etaBox = `<p class="eta-note">${esc(changeTxt)}</p>`;
   }
 
   const moves = (ctr?.movements || []).slice().sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
@@ -490,14 +513,14 @@ async function renderTrack(id, container) {
       <div><span class="lbl">${d.numberType === 'BOOKING' ? 'Booking no.' : 'Container no.'}</span><div class="big">${esc(d.number)}</div></div>
       <div class="right"><span class="lbl">Status</span><span class="pill ${info.cls}">${esc(info.label)}</span></div>
     </div>
+    ${etaHero(d)}
+    ${etaBox}
     ${stepper(d, ctr)}
     <div class="ends">
       ${endsInner(d)}
     </div>
     <hr>
     ${d.failure || d.status === 'PENDING' ? `<p class="muted" style="margin-bottom:16px">${esc(info.hint)}</p>` : ''}
-    ${etaBox}
-    ${etaBox ? '<hr>' : ''}
     <div class="facts">
       <div><span class="lbl">From</span><b>${esc(placeFull(d.origin))}</b></div>
       <div><span class="lbl">To</span><b>${esc(placeFull(d.destination))}</b></div>
